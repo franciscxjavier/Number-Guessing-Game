@@ -1,4 +1,25 @@
 #!/bin/bash
+#Iniciamos variable de SQL
+PSQL="psql --username=freecodecamp --dbname=number_guess -t --no-align -c"
+
+#Pedimos el nombre de usuario
+echo "Enter your username:"
+read USERNAME
+
+#Consultamos si existe el usuario
+PLAYER_EXISTS_QUERY=$($PSQL "select player_name from game a, player b where a.player_id=b.player_id and player_name='$USERNAME' group by player_name;")
+
+#Si no existe, se inserta el usuario
+if [[ -z $PLAYER_EXISTS_QUERY ]]
+then
+	echo Welcome, $username! It looks like this is your first time here.
+	username_insert=$($PSQL "INSERT INTO player(player_name) VALUES('$username');")
+#Si existe, se obtienen sus detalles
+else
+	TOTAL_GAMES=$($PSQL "select count(a.player_id) from game a, player b where a.player_id=b.player_id and player_name='$USERNAME';")
+	LEAST_TRIES=$($PSQL "select min(no_tries) from game a, player b where a.player_id=b.player_id and player_name='$USERNAME';")
+	echo Welcome back, $USERNAME! You have played $TOTAL_GAMES games, and your best game took $LEAST_TRIES guesses.
+fi
 
 # Generamos un número aleatorio entre 1 y 1000
 numero_secreto=$(shuf -i 1-1000 -n 1)
@@ -9,6 +30,12 @@ intentos=0
 # Pedimos al usuario que adivine el número
 echo "Guess the secret number between 1 and 1000:"
 read numero_adivinado
+
+while [[ ! $numero_adivinado =~ ^[0-9]+$ ]]
+do
+echo "That is not an integer, guess again:"
+read numbero_adivinado
+done
 
 # Mientras el número adivinado sea diferente al número secreto, seguimos pidiendo al usuario que adivine
 while [[ $numero_adivinado -ne $numero_secreto ]]
