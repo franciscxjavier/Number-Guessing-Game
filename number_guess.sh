@@ -1,59 +1,65 @@
 #!/bin/bash
-#Iniciamos variable de SQL
+
+# Connect to the database as the "freecodecamp" user and use the "number_guess" database
 PSQL="psql --username=freecodecamp --dbname=number_guess -t --no-align -c"
 
-#Pedimos el nombre de usuario
+# Prompt the user for their username
 echo "Enter your username:"
 read USERNAME
 
-#Consultamos si existe el usuario
-PLAYER_EXISTS_QUERY=$($PSQL "select player_name from game a, player b where a.player_id=b.player_id and player_name='$USERNAME' group by player_name;")
+# Check if the user already exists in the database
+USERNAME_AVAIL=$($PSQL "SELECT player_name FROM game a, player b WHERE a.player_id=b.player_id AND player_name='$USERNAME' GROUP BY player_name;")
+GAMES_PLAYED=$($PSQL "SELECT COUNT(a.player_id) FROM game a, player b WHERE a.player_id=b.player_id AND player_name='$USERNAME';")
+BEST_GAME=$($PSQL "SELECT MIN(no_tries) FROM game a, player b WHERE a.player_id=b.player_id AND player_name='$USERNAME';")
 
-#Si no existe, se inserta el usuario
-if [[ -z $PLAYER_EXISTS_QUERY ]]
+# If the user does not exist, insert them into the database
+if [[ -z $USERNAME_AVAIL ]]
 then
-	echo Welcome, $username! It looks like this is your first time here.
-	username_insert=$($PSQL "INSERT INTO player(player_name) VALUES('$username');")
-#Si existe, se obtienen sus detalles
+    INSERT_USERNAME=$($PSQL "INSERT INTO player(player_name) VALUES('$USERNAME');")
+    echo "Welcome, $USERNAME! It looks like this is your first time here."
+# If the user does exist, display their statistics
 else
-	TOTAL_GAMES=$($PSQL "select count(a.player_id) from game a, player b where a.player_id=b.player_id and player_name='$USERNAME';")
-	LEAST_TRIES=$($PSQL "select min(no_tries) from game a, player b where a.player_id=b.player_id and player_name='$USERNAME';")
-	echo Welcome back, $USERNAME! You have played $TOTAL_GAMES games, and your best game took $LEAST_TRIES guesses.
+    echo "Welcome back, $USERNAME! You have played $GAMES_PLAYED games, and your best game took $BEST_GAME guesses."
 fi
 
-# Generamos un número aleatorio entre 1 y 1000
-numero_secreto=$(shuf -i 1-1000 -n 1)
+# Generate a random number between 1 and 1000
+RANDOM_NUM=$((1 + $RANDOM % 1000))
 
-# Inicializamos la variable de contador de intentos en 0
-intentos=0
+# Start the number guessing game
+    # Prompt the user to guess the secret number
+    echo "Guess the secret number between 1 and 1000:"
 
-# Pedimos al usuario que adivine el número
-echo "Guess the secret number between 1 and 1000:"
-read numero_adivinado
+    # Initialize the number of guesses to 0
+    guesses=0
 
-while [[ ! $numero_adivinado =~ ^[0-9]+$ ]]
+# Keep prompting the user to guess until they guess the secret number
+while [[ $guessed_number -ne $RANDOM_NUM ]]
 do
-echo "That is not an integer, guess again:"
-read numbero_adivinado
-done
+    # Increment the number of guesses
+    guesses=$((guesses+1))
 
-# Mientras el número adivinado sea diferente al número secreto, seguimos pidiendo al usuario que adivine
-while [[ $numero_adivinado -ne $numero_secreto ]]
-do
-    # Incrementamos el contador de intentos
-    intentos=$((intentos+1))
+    # Read the user's guess
+    read guessed_number
 
-    # Si el número adivinado es mayor que el número secreto, decimos al usuario que adivine un número más bajo
-    if [[ $numero_adivinado -gt $numero_secreto ]]
+    if [[ ! $guessed_number =~ ^[0-9]+$ ]]
+    then
+        echo "That is not an integer, guess again:"
+    # If the user's guess is too high, ask them to guess again
+    elif [[ $guessed_number -gt $RANDOM_NUM ]]
     then
         echo "It's lower than that, guess again:"
-    # Si el número adivinado es menor que el número secreto, decimos al usuario que adivine un número más alto
-    else
+    # If the user's guess is too low, ask them to guess again
+    elif [[ $guessed_number -lt $RANDOM_NUM ]]
+    then
         echo "It's higher than that, guess again:"
+    else 
+        # If the user's guess is correct, congratulate them and display the number of guesses it took
+        echo "You guessed it in $guesses tries. The secret number was $RANDOM_NUM. Nice job!."
     fi
-    read numero_adivinado
+
 done
 
-# Si el número adivinado es igual al número secreto, decimos al usuario que ha acertado y mostramos cuántos intentos pasaron
-echo "You guessed it in $intentos tries. The secret number was $numero_secreto. Nice job!."
+# Insert the player's game into the database
+insert_player=$($PSQL "INSERT INTO game(player_id, no_tries) VALUES((SELECT player_id FROM player WHERE player_name='$USERNAME'), $guesses);")
+
 exit 0
